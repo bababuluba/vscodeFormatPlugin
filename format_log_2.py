@@ -6,7 +6,8 @@ import re
 import json
 from json import JSONDecoder
 import xml.etree.ElementTree as ET
-
+from xml.dom import minidom
+import html
 
 def extract_nested_json(json_string,decoder=JSONDecoder()):
     with open(log_file_path, 'r') as log_file:
@@ -30,33 +31,77 @@ def extract_nested_json(json_string,decoder=JSONDecoder()):
     return out
 
 
-# Function to reformat all XML objects in a file with multiple roots
-def reformat_all_xml_objects(xml_data):
+# Function to extract and reformat XML data from log entries
+def reformat_xml_log(log_entries):
+    # Extract XML segments using regular expressions
+    pattern = r"<?xml[^>]+?><([^>\s]+)[\s>].*?</\1>"
+    # Find all XML matches in the log entries
+    xml_matches = re.findall(pattern, log_entries, re.DOTALL)
+    for x in xml_matches:
+        match = re.search(r"&lt;\?xml.*?\?&gt;", x)
+        nx = re.sub(r"&lt;\?xml.*?\?&gt;", "verySpeical", x)
+        print(nx)
+        xml = ET.fromstring(nx)
+        s = ET.tostring(xml,encoding='unicode',xml_declaration = True)
+        # xml_bytes = s.encode("utf-8")
+        reformatted_xml_bytes = html.unescape(s)
+        # reformatted_xml_string = reformatted_xml_bytes.decode("utf-8")  
+        # print (reformatted_xml_bytes)
+        dom = minidom.parseString(reformatted_xml_bytes)
 
-    # Create an iterator for parsing the XML file incrementally
-    context = ET.iterparse(xml_data, events=("start", "end"))
+        # Pretty-print the XML
+        pretty_xml = dom.toprettyxml(indent="  ")
+        if match:
+            substring = match.group()
+            substring = substring.replace("&lt;", "<")
+            substring = substring.replace("&gt;", ">")
+            pretty_xml = pretty_xml.replace("verySpeical", substring)
+        else:
+            pretty_xml = pretty_xml.replace("verySpeical", '<?xml version="1.0" encoding="UTF-8"?>')
 
-    # Skip the root element of the XML file
-    _, root = next(context)
-
-    # Iterate over the remaining elements in the XML tree
-    for event, elem in context:
-        if event == "end" and elem is not root:
-            # Convert the element to a string with proper formatting
-            elem_string = ET.tostring(elem, encoding='unicode')
-            reformatted_string = elem_string.replace('\n', '').replace('  ', '\t')
-
-            # Replace the original element with the reformatted one
-            parent = elem.getparent()
-            parent.remove(elem)
-            parent.append(ET.fromstring(reformatted_string))
-
-            # Clear the element from memory
-            elem.clear()
-    out = ET.tostring(root, encoding='unicode')
+        print(pretty_xml)
+        print("--------------")
+        out = log_entries.replace(x, "\n"+ pretty_xml)
     print(out)
+    return out
+def reformat_xml_log_1(log_entries):
+    # Extract XML segments using regular expressions
+    pattern = r"(?:<\?xml[^>]+?><([^>\s]+)[\s>].*?</\1>)"
+    # Find all XML matches in the log entries
+    matchObj = re.findall(pattern, log_entries, re.X|re.M)
+    for tag in matchObj:
+        print (tag)
+        
+    # if matchObj:
+    #     print ("1")
+    #     print (matchObj.group())
+    #     print ("2")
+    #     print  (matchObj.group(1))
+    # else:
+    #     print ("No match!!")
+    #     xml = ET.fromstring(nx)
+    #     s = ET.tostring(xml,encoding='unicode',xml_declaration = True)
+    #     # xml_bytes = s.encode("utf-8")
+    #     reformatted_xml_bytes = html.unescape(s)
+    #     # reformatted_xml_string = reformatted_xml_bytes.decode("utf-8")  
+    #     # print (reformatted_xml_bytes)
+    #     dom = minidom.parseString(reformatted_xml_bytes)
 
+    #     # Pretty-print the XML
+    #     pretty_xml = dom.toprettyxml(indent="  ")
+    #     if match:
+    #         substring = match.group()
+    #         substring = substring.replace("&lt;", "<")
+    #         substring = substring.replace("&gt;", ">")
+    #         pretty_xml = pretty_xml.replace("verySpeical", substring)
+    #     else:
+    #         pretty_xml = pretty_xml.replace("verySpeical", '<?xml version="1.0" encoding="UTF-8"?>')
 
+    #     print(pretty_xml)
+    #     print("--------------")
+    #     out = log_entries.replace(x, "\n"+ pretty_xml)
+    # print(out)
+    # return out
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
@@ -66,7 +111,7 @@ if __name__ == '__main__':
         out = extract_nested_json(log_file_path)
         # print(out)
 
-        reformat_all_xml_objects(out)
+        formatted_text = reformat_xml_log_1(out)
         # print(formatted_text)
 
         with open(log_file_path, 'w') as log_file:
